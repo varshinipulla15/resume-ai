@@ -1,59 +1,106 @@
+import nltk
 import re
+from rake_nltk import Rake
 
-# Predefined technical keywords list
-TECH_KEYWORDS = {
-    # Cloud
-    "aws", "azure", "gcp", "cloud", "ec2", "s3", "lambda", "cloudwatch",
-    "cloudformation", "eks", "ecs", "rds", "vpc", "iam", "route53",
+nltk.download('stopwords', quiet=True)
+nltk.download('punkt', quiet=True)
+nltk.download('punkt_tab', quiet=True)
 
-    # DevOps & CI/CD
-    "docker", "kubernetes", "jenkins", "gitlab", "github", "bitbucket",
-    "cicd", "ci/cd", "ansible", "terraform", "helm", "argocd", "spinnaker",
-    "maven", "gradle", "nexus", "artifactory",
+# Tech indicators - if a word contains or matches these patterns, it's likely technical
+TECH_PATTERNS = [
+    r'^[a-z]+\d+',           # words with numbers: python3, k8s, s3
+    r'^\w+\.\w+',            # dotted: node.js, asp.net
+    r'^[a-z]+/[a-z]+',       # slashed: ci/cd, tcp/ip
+    r'^\w+-\w+',             # hyphenated: well-known tools
+]
 
-    # Monitoring & Logging
-    "prometheus", "grafana", "elk", "elasticsearch", "logstash", "kibana",
-    "datadog", "splunk", "newrelic", "dynatrace", "zabbix", "nagios",
-
-    # Programming Languages
+# Known tech terms seed list (small, just for validation not full coverage)
+TECH_SEED = {
+    # Languages
     "python", "java", "javascript", "typescript", "golang", "go", "ruby",
-    "scala", "bash", "powershell", "groovy", "c++", "c#", "rust", "kotlin",
-
+    "bash", "powershell", "scala", "rust", "kotlin", "php", "swift",
+    # Cloud
+    "aws", "azure", "gcp", "ec2", "s3", "lambda", "eks", "ecs", "rds",
+    "cloudformation", "terraform", "pulumi",
+    # DevOps
+    "docker", "kubernetes", "jenkins", "ansible", "helm", "argocd",
+    "gitlab", "github", "bitbucket", "maven", "gradle", "nexus",
+    # Monitoring
+    "prometheus", "grafana", "datadog", "splunk", "elk", "kibana",
+    "elasticsearch", "logstash", "newrelic", "dynatrace", "zabbix",
     # Databases
     "mysql", "postgresql", "mongodb", "redis", "cassandra", "dynamodb",
-    "oracle", "mssql", "sqlite", "elasticsearch", "neo4j", "kafka",
-
+    "oracle", "sqlite", "kafka", "rabbitmq",
     # Networking & Security
-    "linux", "unix", "nginx", "apache", "ssl", "tls", "dns", "http",
-    "rest", "api", "microservices", "vpn", "firewall", "oauth", "jwt",
-
-    # Frameworks & Libraries
+    "nginx", "apache", "ssl", "tls", "dns", "vpn", "oauth", "jwt",
+    "linux", "unix", "windows", "ubuntu", "centos", "debian",
+    # Concepts
+    "devops", "devsecops", "gitops", "sre", "cicd", "agile", "scrum",
+    "microservices", "api", "rest", "graphql", "grpc", "serverless",
+    # Frameworks
     "django", "fastapi", "flask", "spring", "react", "angular", "vue",
-    "nodejs", "express", "hibernate", "pandas", "numpy", "tensorflow",
+    "nodejs", "express", "tensorflow", "pytorch", "pandas", "numpy",
+    # Certifications
+    "cka", "ckad", "aws", "gcp", "ccna", "comptia",
+}
 
-    # Methodologies
-    "agile", "scrum", "devops", "devsecops", "gitops", "sre", "kanban",
-    "jira", "confluence", "sdlc", "tdd", "bdd",
-
-    # Version Control
-    "git", "svn", "mercurial",
+# Words to always ignore regardless
+IGNORE_WORDS = {
+    "experience", "knowledge", "understanding", "ability", "abilities",
+    "skill", "skills", "years", "team", "work", "working", "role",
+    "position", "job", "company", "responsibilities", "requirements",
+    "qualifications", "plus", "good", "strong", "excellent", "great",
+    "including", "related", "relevant", "preferred", "required",
+    "familiar", "proficient", "hands", "time", "basis", "field",
+    "area", "level", "degree", "bachelor", "master", "communication",
+    "problem", "solving", "management", "development", "candidate",
+    "asset", "assets", "budget", "cost", "costs", "employee", "employees",
+    "ensure", "establish", "collaborate", "collaboration", "environment",
+    "enterprise", "digital", "dynamic", "efficient", "comprehensive",
+    "essential", "comfortable", "communicative", "detailed", "detail",
+    "closely", "along", "across", "within", "berlin", "dam", "admin",
+    "coordinator", "manager", "engineer", "senior", "junior", "lead"
 }
 
 
+def is_tech_term(word: str) -> bool:
+    # Check seed list
+    if word in TECH_SEED:
+        return True
+    # Check tech patterns
+    for pattern in TECH_PATTERNS:
+        if re.match(pattern, word):
+            return True
+    return False
+
+
+def extract_keywords(text: str) -> set:
+    rake = Rake()
+    rake.extract_keywords_from_text(text)
+    phrases = rake.get_ranked_phrases()
+
+    keywords = set()
+    for phrase in phrases:
+        words = phrase.lower().split()
+        for word in words:
+            clean = re.sub(r'[^a-z0-9/\.\-\+#]', '', word)
+            if (len(clean) > 1
+                    and clean not in IGNORE_WORDS
+                    and is_tech_term(clean)):
+                keywords.add(clean)
+
+    return keywords
+
+
 def get_missing_keywords(resume_text: str, jd_text: str) -> dict:
-    def extract_tech_words(text):
-        words = re.findall(r'\b[a-zA-Z][a-zA-Z0-9+#./]*\b', text.lower())
-        # Only keep words that exist in our TECH_KEYWORDS list
-        return set(words) & TECH_KEYWORDS
+    jd_keywords = extract_keywords(jd_text)
+    resume_keywords = extract_keywords(resume_text)
 
-    jd_tech = extract_tech_words(jd_text)
-    resume_tech = extract_tech_words(resume_text)
-
-    matched = sorted(jd_tech & resume_tech)
-    missing = sorted(jd_tech - resume_tech)
+    matched = sorted(jd_keywords & resume_keywords)
+    missing = sorted(jd_keywords - resume_keywords)
 
     return {
-        "total_jd_keywords": len(jd_tech),
+        "total_jd_keywords": len(jd_keywords),
         "matched_keywords": matched,
         "matched_count": len(matched),
         "missing_keywords": missing,
