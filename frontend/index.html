@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="page-wrapper">
+
+        <div class="page-header">
+            <h1>Resume Generator</h1>
+            <p>Add the job description and attach your resume to apply.</p>
+            <div class="divider"></div>
+        </div>
+
+        <div class="form-card">
+            <div>
+
+                <!-- Job Description -->
+                <div class="form-group">
+                    <label for="jd">Job Description</label>
+                    <textarea
+                        id="jd"
+                        name="job_dec"
+                        rows="10"
+                        placeholder="Enter the job description here..."></textarea>
+                </div>
+
+                <!-- Resume Upload -->
+                <div class="form-group">
+                    <label for="docInput">Attach Resume</label>
+                    <div class="file-upload-area">
+                        <div class="upload-icon">📄</div>
+                        <label for="docInput" class="choose-btn">Browse File</label>
+                        <input type="file" id="docInput" accept=".pdf,.doc,.docx" onchange="showFileName()">
+                    </div>
+                    <div class="file-info" id="file-info"></div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="btn-row">
+                    <button type="button" class="btn-upload" onclick="uploadFile()">Upload Resume</button>
+                    <button type="button" class="btn-upload" onclick="clearFile()">Clear File</button>
+                    <button type="button" class="btn-submit" onclick="submitForm()">Submit Application</button>
+                </div>
+
+                <div class="submit-info" id="submit-info"></div>
+                <div class="submit-info" id="loading-info" style="display:none;">⏳ Analyzing your resume...</div>
+
+            </div>
+
+            <!-- Results Section -->
+            <div id="results-section" style="display:none;">
+                <div class="divider" style="margin: 32px 0;"></div>
+
+                <!-- Match Score -->
+                <div class="result-block">
+                    <span class="result-label">Match Score</span>
+                    <div class="score-row">
+                        <span id="match-score" class="score-number"></span>
+                        <span id="match-label" class="score-badge"></span>
+                    </div>
+                    <div class="score-bar-bg">
+                        <div class="score-bar-fill" id="score-bar"></div>
+                    </div>
+                </div>
+
+                <!-- Matched Keywords -->
+                <div class="result-block">
+                    <span class="result-label">✅ Matched Keywords <span id="matched-count" class="count-pill"></span></span>
+                    <div id="matched-keywords" class="keyword-cloud"></div>
+                </div>
+
+                <!-- Missing Keywords -->
+                <div class="result-block">
+                    <span class="result-label">❌ Missing Keywords <span id="missing-count" class="count-pill missing-pill"></span></span>
+                    <div id="missing-keywords" class="keyword-cloud"></div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+
+        function uploadFile() {
+            const input = document.getElementById('docInput');
+            const info = document.getElementById('file-info');
+            const file = input.files[0];
+
+            if (!file) {
+                info.className = 'file-info error';
+                info.innerText = 'Please select a file first.';
+                return;
+            }
+
+            info.className = 'file-info';
+            info.innerText = 'Uploading ' + file.name + '...';
+
+            setTimeout(() => {
+                info.innerText = '✓ ' + file.name + ' uploaded successfully!';
+            }, 1500);
+        }
+
+        function showFileName() {
+            const input = document.getElementById('docInput');
+            const info = document.getElementById('file-info');
+            const file = input.files[0];
+
+            if (file) {
+                info.className = 'file-info';
+                info.innerText = '📄 ' + file.name;
+            }
+        }
+
+        function clearFile() {
+            document.getElementById('docInput').value = '';
+            document.getElementById('file-info').innerText = '';
+            document.getElementById('results-section').style.display = 'none';
+            document.getElementById('submit-info').innerText = '';
+        }
+
+        async function submitForm() {
+            console.log('submitForm called!');
+            const jd = document.getElementById('jd').value.trim();
+            const file = document.getElementById('docInput').files[0];
+            const submitInfo = document.getElementById('submit-info');
+            const loadingInfo = document.getElementById('loading-info');
+
+            if (!jd) { alert('Please enter a job description.'); return; }
+            if (!file) { alert('Please upload a resume first.'); return; }
+
+            // Show loading
+            submitInfo.innerText = '';
+            loadingInfo.style.display = 'block';
+            document.getElementById('results-section').style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('jd', jd);
+                formData.append('resume', file);
+
+                const response = await fetch(`${API_URL}/generate-resume`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    submitInfo.style.color = 'var(--accent)';
+                    submitInfo.innerText = '⚠ ' + data.error;
+                    return;
+                }
+
+                displayResults(data);
+
+            } catch (err) {
+                submitInfo.style.color = 'var(--accent)';
+                submitInfo.innerText = '⚠ Could not connect to backend. Make sure FastAPI is running on port 8000.';
+            } finally {
+                loadingInfo.style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            // Match score
+            document.getElementById('match-score').innerText = data.match_score + '%';
+
+            // Badge with color
+            const badge = document.getElementById('match-label');
+            badge.innerText = data.match_label;
+            badge.className = 'score-badge';
+            if (data.match_score >= 70) badge.classList.add('badge-strong');
+            else if (data.match_score >= 40) badge.classList.add('badge-moderate');
+            else badge.classList.add('badge-weak');
+
+            // Score bar
+            document.getElementById('score-bar').style.width = data.match_score + '%';
+
+            // Matched keywords
+            document.getElementById('matched-count').innerText = data.matched_count;
+            document.getElementById('matched-keywords').innerHTML =
+                data.matched_keywords.length
+                    ? data.matched_keywords.map(k => `<span class="kw kw-matched">${k}</span>`).join('')
+                    : '<span class="kw-empty">None found</span>';
+
+            // Missing keywords
+            document.getElementById('missing-count').innerText = data.missing_count;
+            document.getElementById('missing-keywords').innerHTML =
+                data.missing_keywords.length
+                    ? data.missing_keywords.map(k => `<span class="kw kw-missing">${k}</span>`).join('')
+                    : '<span class="kw-empty">🎉 No missing keywords!</span>';
+
+            document.getElementById('results-section').style.display = 'block';
+            document.getElementById('submit-info').style.color = 'var(--success)';
+            document.getElementById('submit-info').innerText = '✓ Analysis complete!';
+        }
+    </script>
+
+</body>
+</html>
