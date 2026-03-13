@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.egg-info/
+
+# Uploads
+backend/uploads/
+
+# Environment
+.env
+
+# VS Code
+.vscode/
+
+# spaCy models
+en_core_web_sm/
