@@ -2,7 +2,8 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from services.extractor import extract_text_from_docx, extract_text_from_pdf
 from services.matcher import get_match_score
-from services.missing_keywords import get_missing_keywords
+#from services.missing_keywords import get_missing_keywords
+from services.ai_missing_keywords import analyze_keywords
 import os
 
 app = FastAPI(title="AI Resume Generator")
@@ -44,7 +45,8 @@ async def generate_resume(
 
     # Get match score
     match = get_match_score(extracted_text, jd)
-    keywords = get_missing_keywords(extracted_text, jd)
+    keywords = await analyze_keywords(extracted_text, jd)
+    #keywords = get_missing_keywords(extracted_text, jd)
 
     return {
         "status": "received",
