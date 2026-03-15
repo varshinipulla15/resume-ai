@@ -4,6 +4,7 @@ from services.extractor import extract_text_from_docx, extract_text_from_pdf
 from services.matcher import get_match_score
 #from services.missing_keywords import get_missing_keywords
 from services.ai_missing_keywords import analyze_keywords
+from services.ats.ats_engine import run_ats_analysis 
 import os
 
 app = FastAPI(title="AI Resume Generator")
@@ -47,6 +48,7 @@ async def generate_resume(
     match = get_match_score(extracted_text, jd)
     keywords = await analyze_keywords(extracted_text, jd)
     #keywords = get_missing_keywords(extracted_text, jd)
+    ats = await run_ats_analysis(extracted_text, jd)
 
     return {
         "status": "received",
@@ -59,5 +61,13 @@ async def generate_resume(
         "matched_keywords": keywords["matched_keywords"],
         "matched_count": keywords["matched_count"],
         "missing_keywords": keywords["missing_keywords"],
-        "missing_count": keywords["missing_count"]
+        "missing_count": keywords["missing_count"],
+        "ats": {
+            "final_ats_score": ats["final_ats_score"],
+            "ats_label": ats["ats_label"],
+            "rule_score": ats["rule_score"],
+            "ai_score": ats["ai_score"],
+            "rule_checks": ats["rule_checks"],
+            "ai_feedback": ats["ai_feedback"]
+        }
     }

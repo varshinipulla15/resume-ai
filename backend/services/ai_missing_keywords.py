@@ -12,7 +12,7 @@ Return ONLY a comma separated list, no explanation, no extra text.
 Job Description:
 {jd_text}
 """
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         response = await client.post(
             OLLAMA_URL,
             json={
@@ -22,7 +22,12 @@ Job Description:
             }
         )
         raw = response.json()["response"]
+        # Remove any intro text before the actual list
+        if "\n\n" in raw:
+         raw = raw.split("\n\n")[-1]
         skills = [skill.strip().lower() for skill in raw.split(",")]
+        # Remove any skills that are too long (likely intro sentences)
+        skills = [s for s in skills if len(s) < 50]
         return skills
 
 
